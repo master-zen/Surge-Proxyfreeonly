@@ -8,11 +8,10 @@ API_URL = os.getenv(
     "PFO_API_URL",
     "https://proxyfreeonly.com/api/free-proxy-list?limit=500&page=1&country=CN&sortBy=lastChecked&sortType=desc"
 )
-MAX_NODES = int(os.getenv("MAX_NODES", "60"))
+MAX_NODES = int(os.getenv("MAX_NODES", "0"))  # 0 表示不限制
 TEST_CONNECTIVITY = os.getenv("TEST_CONNECTIVITY", "true").lower() == "true"
 CONNECT_TIMEOUT = float(os.getenv("CONNECT_TIMEOUT", "1.5"))
 OUTPUT_FILENAME = os.getenv("MODULE_FILENAME", "Surge-Proxies.conf")
-CANDIDATE_LIMIT = int(os.getenv("CANDIDATE_LIMIT", "200"))
 
 IP_RE = re.compile(r"^(?:(?:\d{1,3}\.){3}\d{1,3})$")
 HOST_RE = re.compile(r"^[^\s:@]+$")
@@ -40,13 +39,17 @@ def try_parse_json(text):
     return None
 
 def normalize_proto_list(protocols):
-    """从 protocols 列表中提取 https 或 socks5"""
+    """优先 socks5，其次 https"""
     if not protocols:
         return None
+    # 优先 socks5
     for p in protocols:
         p = str(p).lower()
         if p.startswith("socks5") or p == "socks":
             return "socks5"
+    # 再匹配 https
+    for p in protocols:
+        p = str(p).lower()
         if p == "https":
             return "https"
     return None
@@ -98,14 +101,14 @@ def generate_conf(proxies):
         if proto != "socks5":
             continue
         for idx, node in enumerate(plist, 1):
-            lines.append(f"{city} Socks5 {idx:02d} = socks5 = {node['host']}, {node['port']}")
+            lines.append(f"China {city} Socks5 {idx:02d} = socks5, {node['host']}, {node['port']}")
 
     # 输出 https 节点
     for (city, proto), plist in grouped.items():
         if proto != "https":
             continue
         for idx, node in enumerate(plist, 1):
-            lines.append(f"{city} HTTPS {idx:02d} = https = {node['host']}, {node['port']}")
+            lines.append(f"China {city} HTTPS {idx:02d} = https, {node['host']}, {node['port']}")
 
     lines.append("")
     lines.append("[Proxy Group]")
@@ -125,7 +128,7 @@ def main():
 
     proxies = parse_json_records(records)
 
-    # 去重
+    # 去重（按 IP+端口+协议+城市）
     uniq = {}
     for p in proxies:
         key = (p["host"], p["port"], p["proto"], p["city"])
@@ -133,16 +136,13 @@ def main():
             uniq[key] = p
     proxies = list(uniq.values())
 
-    # 限制候选数量
-    if CANDIDATE_LIMIT > 0:
-        proxies = proxies[:CANDIDATE_LIMIT]
-
     # 测试连通性
     if TEST_CONNECTIVITY:
         proxies = [p for p in proxies if test_connectivity(p["host"], p["port"], CONNECT_TIMEOUT)]
 
     # 限制最终数量
-    proxies = proxies[:MAX_NODES]
+    if MAX_NODES > 0:
+        proxies = proxies[:MAX_NODES]
 
     conf = generate_conf(proxies)
     with open(OUTPUT_FILENAME, "w", encoding="utf-8") as f:
