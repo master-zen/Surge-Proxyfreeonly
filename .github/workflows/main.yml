@@ -1,0 +1,46 @@
+name: Update Surge Proxies
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: surge-proxyfreeonly
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Generate Surge-Proxies.conf
+        env:
+          PFO_API_URL: "https://proxyfreeonly.com/api/free-proxy-list?limit=500&page=1&country=CN&sortBy=lastChecked&sortType=desc"
+          MAX_NODES: "60"
+          TEST_CONNECTIVITY: "true"
+          CONNECT_TIMEOUT: "1.5"
+          MODULE_FILENAME: "Surge-Proxies.conf"
+        run: python generate_proxy_list.py
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet Surge-Proxies.conf; then
+            echo "No changes."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add Surge-Proxies.conf
+            git commit -m "chore: update proxies $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            git push
+          fi
