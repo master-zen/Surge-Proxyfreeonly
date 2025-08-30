@@ -2,7 +2,7 @@ name: Update Surge Proxies
 
 on:
   schedule:
-    - cron: "0 */12 * * *"
+    - cron: "0 */12 * * *"   # 每 12 小时运行一次（UTC 时间）
   workflow_dispatch:
 
 jobs:
@@ -30,8 +30,8 @@ jobs:
           MAX_NODES: "60"
           TEST_CONNECTIVITY: "true"
           CONNECT_TIMEOUT: "1.5"
-          MODULE_FILENAME: "SurgeProxiesCN.conf"
-        run: generate_proxy_list.py
+          MODULE_FILENAME: "Surge-Proxies.conf"
+        run: python generate_proxy_list.py
 
       - name: Commit changes
         run: |
@@ -44,4 +44,3 @@ jobs:
             git commit -m "chore: update proxies $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             git push
           fi
-
